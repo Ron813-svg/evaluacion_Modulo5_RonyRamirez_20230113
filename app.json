@@ -10,11 +10,19 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#ffffff",
+      "imageResizeMode": "cover",
+      "statusBar": {
+        "translucent": false,
+        "backgroundColor": "#ffffff",
+        "barStyle": "dark-content"
+      }
     },
+
     "ios": {
       "supportsTablet": true
     },
+
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
