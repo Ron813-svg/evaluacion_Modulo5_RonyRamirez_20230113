@@ -11,13 +11,45 @@ export default function useLogin() {
   const auth = getAuth();
 
   const login = async () => {
+    if (!email.trim() || !password.trim()) {
+      setError('Por favor completa todos los campos');
+      return false;
+    }
+
     setLoading(true);
     setError(null);
+    
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      // Aquí podrías redirigir o manejar el usuario logueado
+      await signInWithEmailAndPassword(auth, email.trim(), password);
+      return true; // Login exitoso
     } catch (err) {
-      setError(err.message);
+      let errorMessage = 'Error al iniciar sesión';
+      
+      switch (err.code) {
+        case 'auth/user-not-found':
+          errorMessage = 'No existe una cuenta con este correo';
+          break;
+        case 'auth/wrong-password':
+          errorMessage = 'Contraseña incorrecta';
+          break;
+        case 'auth/invalid-email':
+          errorMessage = 'Correo electrónico inválido';
+          break;
+        case 'auth/user-disabled':
+          errorMessage = 'Esta cuenta ha sido deshabilitada';
+          break;
+        case 'auth/too-many-requests':
+          errorMessage = 'Demasiados intentos. Intenta más tarde';
+          break;
+        case 'auth/network-request-failed':
+          errorMessage = 'Error de conexión. Verifica tu internet';
+          break;
+        default:
+          errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
+      return false; // Login falló
     } finally {
       setLoading(false);
     }
@@ -33,4 +65,3 @@ export default function useLogin() {
     login
   };
 }
-

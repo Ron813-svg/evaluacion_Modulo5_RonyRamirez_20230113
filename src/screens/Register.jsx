@@ -1,24 +1,37 @@
 import React from "react";
-import { TouchableOpacity, Alert, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
 import { LinearGradient } from 'expo-linear-gradient';
 import Button from "../components/Button";
 import Input from "../components/Input";
-import useLogin from "../hooks/useLogin";
+import useRegister from "../hooks/useRegister";
 
-export default function LoginScreen({ navigation }) {
-  const { email, setEmail, password, setPassword, loading, error, login } =
-    useLogin();
+export default function RegisterScreen({ navigation }) {
+  const {
+    nombre,
+    setNombre,
+    correo,
+    setCorreo,
+    password,
+    setPassword,
+    edad,
+    setEdad,
+    especialidad,
+    setEspecialidad,
+    loading,
+    error,
+    register,
+  } = useRegister();
 
-  const handleLogin = async () => {
-    const success = await login();
+  const handleRegister = async () => {
+    const success = await register();
     if (success) {
       Alert.alert(
-        "¡Éxito!",
-        "Has iniciado sesión correctamente",
+        "¡Registro Exitoso!",
+        "Tu cuenta ha sido creada correctamente. Ahora puedes iniciar sesión.",
         [
           {
-            text: "Continuar",
+            text: "Ir al Login",
+            onPress: () => navigation.navigate("Login"),
             style: "default"
           }
         ]
@@ -38,23 +51,30 @@ export default function LoginScreen({ navigation }) {
         <ScrollView
           contentContainerStyle={styles.scrollContainer}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
           <View style={styles.logoContainer}>
-            <Text style={styles.logo}>🔐</Text>
-            <Text style={styles.title}>Iniciar Sesión</Text>
-            <Text style={styles.subtitle}>Bienvenido de vuelta</Text>
+            <Text style={styles.logo}>👤</Text>
+            <Text style={styles.title}>Crear Cuenta</Text>
+            <Text style={styles.subtitle}>Únete a nosotros</Text>
           </View>
 
           <View style={styles.formContainer}>
             <Input
+              label="Nombre completo"
+              value={nombre}
+              onChangeText={setNombre}
+              placeholder="Tu nombre completo"
+              icon="account"
+            />
+            <Input
               label="Correo electrónico"
-              value={email}
-              onChangeText={setEmail}
+              value={correo}
+              onChangeText={setCorreo}
               placeholder="tu@email.com"
               keyboardType="email-address"
               autoCapitalize="none"
               icon="email"
-              error={error && error.includes('email') ? 'Correo inválido' : ''}
             />
             <Input
               label="Contraseña"
@@ -63,7 +83,21 @@ export default function LoginScreen({ navigation }) {
               placeholder="••••••••"
               secureTextEntry
               icon="lock"
-              error={error && error.includes('password') ? 'Contraseña incorrecta' : ''}
+            />
+            <Input
+              label="Edad"
+              value={edad}
+              onChangeText={setEdad}
+              placeholder="Tu edad"
+              keyboardType="numeric"
+              icon="calendar"
+            />
+            <Input
+              label="Especialidad"
+              value={especialidad}
+              onChangeText={setEspecialidad}
+              placeholder="Tu especialidad o profesión"
+              icon="school"
             />
 
             {error && (
@@ -73,16 +107,16 @@ export default function LoginScreen({ navigation }) {
             )}
 
             <Button
-              icon="login" 
-              onPress={handleLogin}
+              icon="account-plus"
+              onPress={handleRegister}
               disabled={loading}
               size="large"
             >
-              {loading ? "Iniciando..." : "Iniciar Sesión"}
+              {loading ? "Registrando..." : "Crear Cuenta"}
             </Button>
 
-            <TouchableOpacity onPress={() => navigation.navigate("Register")}>
-              <Text style={styles.link}>¿No tienes cuenta? Regístrate aquí</Text>
+            <TouchableOpacity onPress={() => navigation.navigate("Login")}>
+              <Text style={styles.link}>¿Ya tienes cuenta? Inicia sesión aquí</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -105,7 +139,7 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 30,
   },
   logo: {
     fontSize: 80,
