@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,25 +10,19 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { getAuth, signOut } from 'firebase/auth';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { database } from '../config/firebase';
 import Button from '../components/Button';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import useAuth from '../hooks/useAuth';
+import useUserData from '../hooks/useUserData';
 
 export default function HomeScreen({ navigation }) {
-  const [userData, setUserData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const { user, logout } = useAuth();
+  const { userData, loading, error, refreshUserData } = useUserData();
+  
   const fadeAnim = new Animated.Value(0);
   const slideAnim = new Animated.Value(50);
 
-  const auth = getAuth();
-  const user = auth.currentUser;
-
   useEffect(() => {
-    fetchUserData();
-    
     // Animación de entrada
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -45,34 +39,12 @@ export default function HomeScreen({ navigation }) {
     ]).start();
   }, []);
 
-  const fetchUserData = async () => {
-    try {
-      if (user) {
-        const q = query(
-          collection(database, 'usuarios'),
-          where('uid', '==', user.uid)
-        );
-        const querySnapshot = await getDocs(q);
-        
-        if (!querySnapshot.empty) {
-          const userDoc = querySnapshot.docs[0];
-          setUserData(userDoc.data());
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching user data:', error);
-      Alert.alert('Error', 'No se pudieron cargar los datos del usuario');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
+  // Función para recargar datos con pull-to-refresh
   const onRefresh = async () => {
-    setRefreshing(true);
-    await fetchUserData();
+    await refreshUserData();
   };
 
+  // Función para manejar logout
   const handleLogout = () => {
     Alert.alert(
       'Cerrar Sesión',
@@ -85,9 +57,8 @@ export default function HomeScreen({ navigation }) {
         {
           text: 'Cerrar Sesión',
           onPress: async () => {
-            try {
-              await signOut(auth);
-            } catch (error) {
+            const result = await logout();
+            if (!result.success) {
               Alert.alert('Error', 'No se pudo cerrar la sesión');
             }
           },
@@ -95,6 +66,14 @@ export default function HomeScreen({ navigation }) {
         },
       ]
     );
+  };
+
+  // Función para navegar a editar perfil
+  const handleEditProfile = () => {
+    navigation.navigate('EditProfile', {
+      userData,
+      onProfileUpdated: refreshUserData // Callback para refrescar datos
+    });
   };
 
   if (loading) {
@@ -106,12 +85,24 @@ export default function HomeScreen({ navigation }) {
     );
   }
 
+  if (error) {
+    return (
+      <View style={styles.errorContainer}>
+        <MaterialCommunityIcons name="alert-circle" size={48} color="#dc3545" />
+        <Text style={styles.errorText}>{error}</Text>
+        <Button onPress={refreshUserData} icon="refresh">
+          Reintentar
+        </Button>
+      </View>
+    );
+  }
+
   return (
     <LinearGradient colors={['#667eea', '#764ba2']} style={styles.gradient}>
       <ScrollView
         style={styles.container}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl refreshing={loading} onRefresh={onRefresh} />
         }
         showsVerticalScrollIndicator={false}
       >
@@ -191,7 +182,7 @@ export default function HomeScreen({ navigation }) {
           <View style={styles.buttonContainer}>
             <Button
               icon="account-edit"
-              onPress={() => navigation.navigate('EditProfile')}
+              onPress={handleEditProfile}
               size="medium"
             >
               Editar Perfil
@@ -230,6 +221,19 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 16,
     color: '#666',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#dc3545',
+    textAlign: 'center',
+    marginVertical: 20,
   },
   header: {
     alignItems: 'center',

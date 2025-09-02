@@ -10,124 +10,120 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { getAuth, updateProfile } from 'firebase/auth';
-import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
-import { database } from '../config/firebase';
 import Button from '../components/Button';
 import Input from '../components/Input';
+import useAuth from '../hooks/useAuth';
+import useUserData from '../hooks/useUserData';
+import useProfileEdit from '../hooks/useProfileEdit';
 
-export default function EditProfileScreen({ navigation }) {
-  const [userData, setUserData] = useState(null);
+export default function EditProfileScreen({ navigation, route }) {
+  const { user } = useAuth();
+  const { userData, docId, loading: loadingUserData, refreshUserData } = useUserData();
+  const { loading: saving, error: saveError, updateUserProfile, hasChanges, clearError } = useProfileEdit();
+  
+  // Estados del formulario
   const [nombre, setNombre] = useState('');
   const [edad, setEdad] = useState('');
   const [especialidad, setEspecialidad] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [docId, setDocId] = useState(null);
+  const [formErrors, setFormErrors] = useState({});
 
-  const auth = getAuth();
-  const user = auth.currentUser;
+  // Callback para actualizar la pantalla Home
+  const onProfileUpdated = route?.params?.onProfileUpdated;
 
   useEffect(() => {
-    fetchUserData();
-  }, []);
-
-  const fetchUserData = async () => {
-    try {
-      if (user) {
-        const q = query(
-          collection(database, 'usuarios'),
-          where('uid', '==', user.uid)
-        );
-        const querySnapshot = await getDocs(q);
-        
-        if (!querySnapshot.empty) {
-          const userDoc = querySnapshot.docs[0];
-          const data = userDoc.data();
-          setUserData(data);
-          setDocId(userDoc.id);
-          
-          // Llenar los campos con los datos actuales
-          setNombre(data.nombre || '');
-          setEdad(data.edad || '');
-          setEspecialidad(data.especialidad || '');
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching user data:', error);
-      Alert.alert('Error', 'No se pudieron cargar los datos del usuario');
-    } finally {
-      setLoading(false);
+    if (userData) {
+      // Llenar los campos con los datos actuales
+      setNombre(userData.nombre || '');
+      setEdad(userData.edad || '');
+      setEspecialidad(userData.especialidad || '');
     }
-  };
+  }, [userData]);
+
+  // Limpiar errores cuando el usuario escribe
+  useEffect(() => {
+    if (saveError || Object.keys(formErrors).length > 0) {
+      clearError();
+      setFormErrors({});
+    }
+  }, [nombre, edad, especialidad]);
 
   const handleSave = async () => {
-    // Validaciones básicas
-    if (!nombre.trim()) {
-      Alert.alert('Error', 'El nombre es requerido');
+    const formData = {
+      nombre: nombre.trim(),
+      edad: edad.trim(),
+      especialidad: especialidad.trim()
+    };
+
+    // Verificar si hay cambios
+    if (!hasChanges(userData, formData)) {
+      Alert.alert('Sin cambios', 'No se detectaron cambios en la información');
       return;
     }
 
-    if (!edad.trim() || isNaN(edad) || parseInt(edad) < 1 || parseInt(edad) > 120) {
-      Alert.alert('Error', 'Por favor ingresa una edad válida (1-120)');
-      return;
-    }
-
-    setSaving(true);
-
-    try {
-      // Actualizar el perfil en Firebase Auth
-      await updateProfile(user, {
-        displayName: nombre.trim()
-      });
-
-      // Actualizar los datos en Firestore
-      if (docId) {
-        const userDocRef = doc(database, 'usuarios', docId);
-        await updateDoc(userDocRef, {
-          nombre: nombre.trim(),
-          edad: edad.trim(),
-          especialidad: especialidad.trim()
-        });
-
-        Alert.alert(
-          '¡Éxito!',
-          'Tus datos han sido actualizados correctamente',
-          [
-            {
-              text: 'Continuar',
-              onPress: () => navigation.goBack()
+    const result = await updateUserProfile(formData, docId);
+    
+    if (result.success) {
+      Alert.alert(
+        '¡Éxito!',
+        'Tu perfil ha sido actualizado correctamente',
+        [
+          {
+            text: 'Continuar',
+            onPress: () => {
+              // Refrescar datos en Home si hay callback
+              if (onProfileUpdated) {
+                onProfileUpdated();
+              }
+              // También refrescar datos locales
+              refreshUserData();
+              navigation.goBack();
             }
-          ]
-        );
-      }
-    } catch (error) {
-      console.error('Error updating profile:', error);
-      Alert.alert('Error', 'No se pudieron actualizar los datos');
-    } finally {
-      setSaving(false);
+          }
+        ]
+      );
+    } else if (result.errors) {
+      // Mostrar errores de validación
+      setFormErrors(result.errors);
+    } else {
+      Alert.alert('Error', result.error || 'No se pudieron actualizar los datos');
     }
   };
 
   const handleCancel = () => {
-    Alert.alert(
-      'Cancelar Cambios',
-      '¿Estás seguro de que quieres cancelar? Los cambios no guardados se perderán.',
-      [
-        {
-          text: 'Continuar Editando',
-          style: 'cancel'
-        },
-        {
-          text: 'Cancelar',
-          onPress: () => navigation.goBack(),
-          style: 'destructive'
-        }
-      ]
-    );
+    const originalData = {
+      nombre: userData?.nombre || '',
+      edad: userData?.edad || '',
+      especialidad: userData?.especialidad || ''
+    };
+
+    const currentData = {
+      nombre: nombre.trim(),
+      edad: edad.trim(),
+      especialidad: especialidad.trim()
+    };
+
+    if (hasChanges(originalData, currentData)) {
+      Alert.alert(
+        'Cancelar Cambios',
+        '¿Estás seguro de que quieres cancelar? Los cambios no guardados se perderán.',
+        [
+          {
+            text: 'Continuar Editando',
+            style: 'cancel'
+          },
+          {
+            text: 'Cancelar',
+            onPress: () => navigation.goBack(),
+            style: 'destructive'
+          }
+        ]
+      );
+    } else {
+      navigation.goBack();
+    }
   };
 
-  if (loading) {
+  if (loadingUserData) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#007bff" />
@@ -159,6 +155,7 @@ export default function EditProfileScreen({ navigation }) {
               onChangeText={setNombre}
               placeholder="Tu nombre completo"
               icon="account"
+              error={formErrors.nombre}
             />
 
             <View style={styles.readOnlyContainer}>
@@ -180,6 +177,7 @@ export default function EditProfileScreen({ navigation }) {
               placeholder="Tu edad"
               keyboardType="numeric"
               icon="calendar"
+              error={formErrors.edad}
             />
 
             <Input
@@ -188,7 +186,14 @@ export default function EditProfileScreen({ navigation }) {
               onChangeText={setEspecialidad}
               placeholder="Tu especialidad o profesión"
               icon="school"
+              error={formErrors.especialidad}
             />
+
+            {saveError && typeof saveError === 'string' && (
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>{saveError}</Text>
+              </View>
+            )}
 
             <View style={styles.buttonContainer}>
               <Button
@@ -205,6 +210,7 @@ export default function EditProfileScreen({ navigation }) {
                 onPress={handleCancel}
                 variant="secondary"
                 size="medium"
+                disabled={saving}
               >
                 Cancelar
               </Button>
@@ -215,6 +221,7 @@ export default function EditProfileScreen({ navigation }) {
     </LinearGradient>
   );
 }
+
 
 const styles = StyleSheet.create({
   gradient: {
