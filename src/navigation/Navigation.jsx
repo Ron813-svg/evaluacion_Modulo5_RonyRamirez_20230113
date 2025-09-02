@@ -14,19 +14,24 @@ const Stack = createNativeStackNavigator();
 
 const Navigation = () => {
     const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const [initializing, setInitializing] = useState(true);
     const auth = getAuth();
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (user) => {
             setUser(user);
-            setLoading(false);
+            // Solo cambiar initializing a false después de que Firebase Auth esté listo
+            if (initializing) {
+                // Agregar un pequeño delay para asegurar que todo esté listo
+                setTimeout(() => setInitializing(false), 500);
+            }
         });
 
         return unsubscribe;
-    }, []);
+    }, [initializing]);
 
-    if (loading) {
+    // Mostrar splash mientras Firebase Auth se inicializa
+    if (initializing) {
         return (
             <NavigationContainer>
                 <Stack.Navigator>

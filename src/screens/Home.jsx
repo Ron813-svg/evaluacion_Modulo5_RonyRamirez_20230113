@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -18,30 +18,40 @@ import useUserData from '../hooks/useUserData';
 export default function HomeScreen({ navigation }) {
   const { user, logout } = useAuth();
   const { userData, loading, error, refreshUserData } = useUserData();
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   const fadeAnim = new Animated.Value(0);
   const slideAnim = new Animated.Value(50);
 
   useEffect(() => {
-    // Animación de entrada
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 1000,
-        useNativeDriver: true,
-      }),
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        tension: 50,
-        friction: 8,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, []);
+    // Solo ejecutar animación cuando los datos estén listos
+    if (userData && !loading) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          tension: 50,
+          friction: 8,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [userData, loading]);
 
   // Función para recargar datos con pull-to-refresh
   const onRefresh = async () => {
-    await refreshUserData();
+    setIsRefreshing(true);
+    try {
+      await refreshUserData();
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   // Función para manejar logout
@@ -76,24 +86,34 @@ export default function HomeScreen({ navigation }) {
     });
   };
 
-  if (loading) {
+  // Mostrar loading mientras se cargan los datos iniciales
+  if (loading && !userData) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007bff" />
-        <Text style={styles.loadingText}>Cargando datos...</Text>
-      </View>
+      <LinearGradient colors={['#667eea', '#764ba2']} style={styles.gradient}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#fff" />
+          <Text style={styles.loadingText}>Cargando tu perfil...</Text>
+        </View>
+      </LinearGradient>
     );
   }
 
-  if (error) {
+  // Mostrar error si hay problemas de conectividad
+  if (error && !userData) {
     return (
-      <View style={styles.errorContainer}>
-        <MaterialCommunityIcons name="alert-circle" size={48} color="#dc3545" />
-        <Text style={styles.errorText}>{error}</Text>
-        <Button onPress={refreshUserData} icon="refresh">
-          Reintentar
-        </Button>
-      </View>
+      <LinearGradient colors={['#667eea', '#764ba2']} style={styles.gradient}>
+        <View style={styles.errorContainer}>
+          <MaterialCommunityIcons name="wifi-off" size={48} color="#fff" />
+          <Text style={styles.errorText}>{error}</Text>
+          <Button 
+            onPress={refreshUserData} 
+            icon="refresh"
+            variant="secondary"
+          >
+            Reintentar
+          </Button>
+        </View>
+      </LinearGradient>
     );
   }
 
@@ -102,7 +122,12 @@ export default function HomeScreen({ navigation }) {
       <ScrollView
         style={styles.container}
         refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={onRefresh} />
+          <RefreshControl 
+            refreshing={isRefreshing} 
+            onRefresh={onRefresh}
+            tintColor="#fff"
+            colors={['#fff']}
+          />
         }
         showsVerticalScrollIndicator={false}
       >
@@ -215,23 +240,23 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
+    padding: 20,
   },
   loadingText: {
-    marginTop: 10,
+    marginTop: 15,
     fontSize: 16,
-    color: '#666',
+    color: '#fff',
+    textAlign: 'center',
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
     padding: 20,
   },
   errorText: {
     fontSize: 16,
-    color: '#dc3545',
+    color: '#fff',
     textAlign: 'center',
     marginVertical: 20,
   },

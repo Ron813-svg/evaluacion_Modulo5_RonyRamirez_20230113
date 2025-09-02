@@ -1,6 +1,6 @@
 // hooks/useUserData.js
 import { useState, useEffect } from 'react';
-import { getAuth } from 'firebase/auth';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
 import { database } from '../config/firebase';
 
@@ -9,13 +9,15 @@ export default function useUserData() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [docId, setDocId] = useState(null);
+  const [user, setUser] = useState(null);
 
   const auth = getAuth();
-  const user = auth.currentUser;
 
   // Función para obtener datos del usuario
-  const fetchUserData = async () => {
-    if (!user) {
+  const fetchUserData = async (currentUser) => {
+    if (!currentUser) {
+      setUserData(null);
+      setDocId(null);
       setLoading(false);
       return null;
     }
@@ -24,7 +26,7 @@ export default function useUserData() {
       setError(null);
       const q = query(
         collection(database, 'usuarios'),
-        where('uid', '==', user.uid)
+        where('uid', '==', currentUser.uid)
       );
       const querySnapshot = await getDocs(q);
       
@@ -35,39 +37,45 @@ export default function useUserData() {
         setDocId(userDoc.id);
         return { data, docId: userDoc.id };
       } else {
-        // Si no existe el documento, crear uno básico
         const basicData = {
-          uid: user.uid,
-          nombre: user.displayName || '',
-          correo: user.email || '',
+          uid: currentUser.uid,
+          nombre: currentUser.displayName || '',
+          correo: currentUser.email || '',
           edad: '',
           especialidad: ''
         };
         setUserData(basicData);
+        setDocId(null);
         return { data: basicData, docId: null };
       }
     } catch (err) {
       console.error('Error fetching user data:', err);
-      setError('Error al cargar los datos del usuario');
+      let errorMessage = 'Error al cargar los datos del usuario';
+      
+      if (err.code === 'permission-denied') {
+        errorMessage = 'Sin permisos para acceder a los datos';
+      } else if (err.code === 'unavailable') {
+        errorMessage = 'Servicio no disponible. Intenta más tarde';
+      }
+      
+      setError(errorMessage);
       return null;
     } finally {
       setLoading(false);
     }
   };
 
-  // Función para refrescar datos
   const refreshUserData = async () => {
     setLoading(true);
-    await fetchUserData();
+    await fetchUserData(user);
   };
 
-  // Suscripción en tiempo real a cambios
-  const subscribeToUserData = () => {
-    if (!user) return null;
+  const subscribeToUserData = (currentUser) => {
+    if (!currentUser) return null;
 
     const q = query(
       collection(database, 'usuarios'),
-      where('uid', '==', user.uid)
+      where('uid', '==', currentUser.uid)
     );
 
     const unsubscribe = onSnapshot(q, 
@@ -77,6 +85,16 @@ export default function useUserData() {
           const data = userDoc.data();
           setUserData(data);
           setDocId(userDoc.id);
+        } else {
+          const basicData = {
+            uid: currentUser.uid,
+            nombre: currentUser.displayName || '',
+            correo: currentUser.email || '',
+            edad: '',
+            especialidad: ''
+          };
+          setUserData(basicData);
+          setDocId(null);
         }
         setLoading(false);
       },
@@ -90,23 +108,29 @@ export default function useUserData() {
     return unsubscribe;
   };
 
-  // Efecto para cargar datos iniciales
   useEffect(() => {
-    if (user) {
-      fetchUserData();
-      // Opcional: suscribirse a cambios en tiempo real
-      // const unsubscribe = subscribeToUserData();
-      // return unsubscribe;
-    } else {
-      setLoading(false);
-    }
-  }, [user]);
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      
+      if (currentUser) {
+        fetchUserData(currentUser);
+      } else {
+        setUserData(null);
+        setDocId(null);
+        setError(null);
+        setLoading(false);
+      }
+    });
+
+    return unsubscribe;
+  }, []);
 
   return {
     userData,
     docId,
     loading,
     error,
+    user, 
     fetchUserData,
     refreshUserData,
     subscribeToUserData
