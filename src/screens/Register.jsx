@@ -28,13 +28,6 @@ export default function RegisterScreen({ navigation }) {
       Alert.alert(
         "¡Registro Exitoso!",
         "Tu cuenta ha sido creada correctamente. Ahora puedes iniciar sesión.",
-        [
-          {
-            text: "Ir al Login",
-            onPress: () => navigation.navigate("Login"),
-            style: "default"
-          }
-        ]
       );
     }
   };
