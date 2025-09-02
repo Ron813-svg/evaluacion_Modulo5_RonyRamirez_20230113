@@ -27,7 +27,6 @@ export default function RegisterScreen({ navigation }) {
     if (success) {
       Alert.alert(
         "¡Registro Exitoso!",
-        "Tu cuenta ha sido creada correctamente. Ahora puedes iniciar sesión.",
       );
     }
   };
